@@ -240,10 +240,20 @@
 
   /* ---------- ayarlar / veri ---------- */
 
+  /* Cihaza özel tercihler — paylaşılmaz, şifre gerektirmez. */
+  var DEVICE_PREFS = { theme: 1, inputMode: 1 };
+
+  function applyPref(key, raw) {
+    if (key === 'theme') store.prefs.theme = ['auto', 'light', 'dark'].indexOf(raw) >= 0 ? raw : 'auto';
+    else if (key === 'inputMode') store.prefs.inputMode = raw === 'detailed' ? 'detailed' : 'fast';
+    else return;
+    store.savePrefs();
+    ui.render();
+  }
+
   function applySetting(key, raw, isCheckbox) {
     var c = store.settings;
     if (isCheckbox) c[key] = !!raw;
-    else if (key === 'theme') c[key] = ['auto', 'light', 'dark'].indexOf(raw) >= 0 ? raw : 'auto';
     else if (key === 'playoffSize') c[key] = util.clampInt(raw, 2, 32, 8);
     else {
       var lim = {
@@ -453,8 +463,11 @@
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el) return;
     if (el.dataset.act === 'setting') {
+      var key = el.dataset.key;
+      var val = el.type === 'checkbox' ? el.checked : el.value;
+      if (DEVICE_PREFS[key]) { applyPref(key, val); return; }   // tema/giriş modu şifresiz
       if (!requireWrite()) { ui.render(); return; }
-      applySetting(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value, el.type === 'checkbox');
+      applySetting(key, val, el.type === 'checkbox');
     }
   });
 

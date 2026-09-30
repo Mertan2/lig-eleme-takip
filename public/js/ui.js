@@ -111,11 +111,15 @@
         '</div>';
     }
 
-    html += '<div class="card">' +
-      '<div class="row">' +
-      '<input type="text" id="newPlayerName" class="grow" placeholder="Oyuncu adı ekle…" maxlength="40" autocomplete="off" enterkeyhint="done">' +
-      '<button data-act="add-player">Ekle</button>' +
-      '</div></div>';
+    if (canEdit()) {
+      html += '<div class="card">' +
+        '<div class="row">' +
+        '<input type="text" id="newPlayerName" class="grow" placeholder="Oyuncu adı ekle…" maxlength="40" autocomplete="off" enterkeyhint="done">' +
+        '<button data-act="add-player">Ekle</button>' +
+        '</div></div>';
+    } else {
+      html += lockedHint('Oyuncu eklemek, fikstür oluşturmak ve skor girmek için şifre gerekir.');
+    }
 
     if (!s.players.length) {
       html += '<div class="empty">Henüz oyuncu yok.<br>Yukarıdan ekleyerek başlayın.</div>';
@@ -137,15 +141,17 @@
     }
 
     var ligCount = s.matches.filter(function (m) { return m.phase === 'lig'; }).length;
-    html += '<div class="card">' +
-      '<button class="block" data-act="gen-fixture"' + (s.players.length < 2 ? ' disabled' : '') + '>' +
-      (ligCount ? 'Fikstürü Yeniden Oluştur' : 'Fikstürü Oluştur') + '</button>' +
-      '<div class="hint">' +
-      (s.settings.doubleRound ? 'Çift devreli: herkes birbiriyle 2 kez oynar.' : 'Tek devreli: herkes birbiriyle 1 kez oynar.') +
-      ' Maçlar turlara dağıtılır.' + (ligCount ? ' <strong>Yeniden oluşturmak girilmiş skorları siler.</strong>' : '') +
-      '</div>' +
-      (ligCount ? '<button class="ghost block" data-act="clear-fixture" style="margin-top:10px;">Fikstürü Sil</button>' : '') +
-      '</div>';
+    if (canEdit()) {
+      html += '<div class="card">' +
+        '<button class="block" data-act="gen-fixture"' + (s.players.length < 2 ? ' disabled' : '') + '>' +
+        (ligCount ? 'Fikstürü Yeniden Oluştur' : 'Fikstürü Oluştur') + '</button>' +
+        '<div class="hint">' +
+        (s.settings.doubleRound ? 'Çift devreli: herkes birbiriyle 2 kez oynar.' : 'Tek devreli: herkes birbiriyle 1 kez oynar.') +
+        ' Maçlar turlara dağıtılır.' + (ligCount ? ' <strong>Yeniden oluşturmak girilmiş skorları siler.</strong>' : '') +
+        '</div>' +
+        (ligCount ? '<button class="ghost block" data-act="clear-fixture" style="margin-top:10px;">Fikstürü Sil</button>' : '') +
+        '</div>';
+    }
 
     return html;
   }
@@ -283,7 +289,7 @@
     var started = rs.length > 0;
     var qCount = Math.min(store.settings.playoffSize, store.state.players.length);
 
-    var html = '<div class="card">' +
+    var html = !canEdit() ? '' : '<div class="card">' +
       '<button class="block' + (started ? ' secondary' : '') + '" data-act="start-playoffs"' +
       (store.state.players.length < 2 ? ' disabled' : '') + '>' +
       (started ? 'Elemeleri Sıfırla ve Yeniden Kur' : 'Elemeleri Başlat (İlk ' + qCount + ')') + '</button>' +
@@ -293,7 +299,10 @@
           (!standings.leagueComplete() && standings.progress().total ? ' <strong>Lig henüz bitmedi.</strong>' : '') + '</div>') +
       '</div>';
 
-    if (!started) return html + '<div class="empty">Eleme aşaması henüz başlamadı.</div>';
+    if (!started) {
+      return html + '<div class="empty">Eleme aşaması henüz başlamadı.' +
+        (canEdit() ? '' : '<br>Başlatmak için şifre gerekir.') + '</div>';
+    }
 
     html += '<div class="bracket">';
     rs.forEach(function (rn) {
@@ -312,8 +321,10 @@
     } else {
       var last = rs[rs.length - 1];
       var ready = playoffs.roundDecided(last);
-      html += '<div class="card"><button class="block" data-act="next-round"' + (ready ? '' : ' disabled') + '>Sonraki Turu Oluştur</button>' +
-        (ready ? '' : '<div class="hint">Bu turdaki tüm maçlar bitince aktifleşir.</div>') + '</div>';
+      if (canEdit()) {
+        html += '<div class="card"><button class="block" data-act="next-round"' + (ready ? '' : ' disabled') + '>Sonraki Turu Oluştur</button>' +
+          (ready ? '' : '<div class="hint">Bu turdaki tüm maçlar bitince aktifleşir.</div>') + '</div>';
+      }
     }
     return html;
   }
@@ -334,6 +345,16 @@
     var themeOpts = [['auto', 'Sistem'], ['light', 'Açık'], ['dark', 'Koyu']].map(function (o) {
       return '<option value="' + o[0] + '"' + (store.prefs.theme === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
     }).join('');
+
+    if (!canEdit()) {
+      return lockedHint('Turnuva ayarlarını değiştirmek için şifre gerekir.') +
+        '<div class="section-title">Görünüm</div><div class="card">' +
+        '<label class="field" for="set_theme">Tema</label>' +
+        '<select id="set_theme" data-act="setting" data-key="theme">' + themeOpts + '</select></div>' +
+        '<div class="section-title">Veri</div><div class="card">' +
+        '<button class="secondary block" data-act="export">Yedek Al (JSON indir)</button>' +
+        '<div class="hint">İzleme modunda tabloyu yedekleyebilirsin; değiştiremezsin.</div></div>';
+    }
 
     var samples = rules.winningSetScores(c).map(function (s) { return s[0] + '-' + s[1]; }).join(', ');
 
@@ -405,7 +426,7 @@
       '<span>' + esc(store.playerName(m.p2)) + '</span></div>' +
       '</div>';
 
-    if (active >= 0) {
+    if (active >= 0 && canEdit()) {
       html += '<div class="seg-group mode-seg">' +
         '<button class="seg' + (mode === 'fast' ? ' on' : '') + '" data-act="input-mode" data-v="fast">Hızlı giriş</button>' +
         '<button class="seg' + (mode === 'detailed' ? ' on' : '') + '" data-act="input-mode" data-v="detailed">Detaylı giriş</button>' +
@@ -426,12 +447,14 @@
           '<i>-</i><b' + (sw === 'b' ? ' class="w"' : '') + '>' + set.b + '</b></span>' +
           '<span class="sl-who">' + (sw ? esc(store.playerName(sw === 'a' ? m.p1 : m.p2)) : 'devam ediyor') +
           (detail ? '<small>' + esc(detail) + '</small>' : '') + '</span>' +
-          '<button class="ghost tiny" data-act="del-set" data-i="' + i + '">Sil</button>' +
+          (canEdit() ? '<button class="ghost tiny" data-act="del-set" data-i="' + i + '">Sil</button>' : '') +
           '</div>';
       }).join('') + '</div>';
     }
 
-    if (active >= 0 && mode === 'fast') {
+    if (active >= 0 && !canEdit()) {
+      html += lockedHint('Bu maçın skorunu girmek için şifre gerekir.');
+    } else if (active >= 0 && mode === 'fast') {
       html += '<div class="section-title">' + (active + 1) + '. Setin Oyun Skoru</div>' +
         '<div class="picker">' +
         pickerRow(store.playerName(m.p1) + ' aldı', wins, 'add-set') +
@@ -454,7 +477,7 @@
         Math.max(s.a, s.b) + '-' + Math.min(s.a, s.b) + ' kazandı.</div>';
     }
 
-    if (list.length) {
+    if (list.length && canEdit()) {
       html += '<button class="ghost block" data-act="clear-score" style="margin-top:10px;">Tüm Setleri Sil</button>';
     }
     return html;
@@ -553,10 +576,12 @@
       }).join('') + '</div>';
     }
 
-    html += '<div class="row" style="margin-top:16px;gap:8px;">' +
-      '<button class="secondary grow" data-act="rename-player" data-id="' + esc(p.id) + '">Adı Değiştir</button>' +
-      '<button class="danger grow" data-act="del-player" data-id="' + esc(p.id) + '">Oyuncuyu Sil</button>' +
-      '</div>';
+    if (canEdit()) {
+      html += '<div class="row" style="margin-top:16px;gap:8px;">' +
+        '<button class="secondary grow" data-act="rename-player" data-id="' + esc(p.id) + '">Adı Değiştir</button>' +
+        '<button class="danger grow" data-act="del-player" data-id="' + esc(p.id) + '">Oyuncuyu Sil</button>' +
+        '</div>';
+    }
 
     return html;
   }
@@ -578,6 +603,16 @@
     offline: ['Çevrimdışı', 'Bağlantı yok — değişiklikler kuyrukta'],
     readonly: ['Salt okunur', 'Skor girmek için PIN gerekli']
   };
+
+  /* Düzenleme yetkisi var mı? Yoksa değiştirme düğmeleri hiç çizilmez. */
+  function canEdit() {
+    return L.sync ? L.sync.canWrite() : true;
+  }
+
+  function lockedHint(metin) {
+    return '<div class="note"><b>İzleme modu</b>' + esc(metin) +
+      ' Sağ üstteki <strong>Şifre gir</strong> düğmesini kullan.</div>';
+  }
 
   function syncInfo() {
     return L.sync ? L.sync.state() : { connected: false, status: 'local', pending: 0, canWrite: true };
