@@ -39,26 +39,24 @@ Ardından http://localhost:4173 adresini aç. Bu haliyle uygulama **yerel modda*
 `public/index.html` dosyasını doğrudan çift tıklayarak da açabilirsin (klasik `<script>` etiketleri, ES modülü yok).
 API'yi de çalıştırmak için aşağıdaki "Yerel geliştirme" bölümüne bak.
 
-## Bulut turnuvası (Cloudflare Pages + D1)
+## Ortak tablo (Cloudflare Pages + D1)
 
-Uygulama iki modda çalışır:
+**Siteyi açan herkes aynı tabloyu görür.** Kod girmek, link paylaşmak, hesap açmak yok —
+adres tek başına yeterli. Veriler Cloudflare D1'de durur.
 
-| Mod | Veri nerede | Kimler görür |
-|---|---|---|
-| **Yerel** (varsayılan) | Sadece bu tarayıcı (`localStorage`) | sadece sen |
-| **Bulut turnuvası** | Cloudflare D1 | linki olan herkes |
-
-Sağ üstteki durum rozetine dokunup turnuva oluşturursun; uygulama sana
-`https://<site>/#/t/KOD` linki verir.
-
-- **Okuma herkese açık** — linki olan herkes tabloyu, fikstürü, istatistikleri görür.
+- **Okuma herkese açık** — adresi açan herkes fikstürü, puan durumunu, istatistikleri görür.
 - **Yazma PIN ister** — PIN **sunucuda** doğrulanır (PBKDF2-SHA256, 120k tur). Doğru PIN 12 saatlik
-  imzalı token verir; 8 hatalı denemede kod 10 dakika kilitlenir.
-- **Çevrimdışı çalışır** — bağlantı yokken skorlar yerel kaydedilir, kuyruğa alınır, bağlantı gelince gönderilir.
-- **Aynı anda birden fazla kişi skor girebilir** — sunucuya tüm state değil, sadece değişen parça (patch)
-  gönderilir; farklı maçları giren iki kişi birbirinin verisini ezmez.
-- **Canlı takip** — sekme açıkken 8 saniyede bir sürüm yoklanır, değişiklik varsa ekran kendiliğinden güncellenir.
-- Tema ve giriş modu **cihaza özeldir**, turnuvayla paylaşılmaz.
+  imzalı token verir; 8 hatalı denemede 10 dakika kilit.
+- **İlk açılışta kurulum** — ortak tablo henüz yoksa ilk giren kişi turnuva adı + PIN belirler.
+  Bir kez yapılır; sonra gelen herkes doğrudan tabloyu görür.
+- **Çevrimdışı çalışır** — bağlantı yokken skorlar yerel kaydedilir, kuyruğa girer, bağlantı gelince gönderilir.
+- **Aynı anda birden fazla kişi skor girebilir** — sunucuya tüm state değil sadece değişen parça (patch)
+  gider; farklı maçları girenler birbirini ezmez.
+- **Canlı takip** — 8 saniyede bir sürüm yoklanır, değişiklik varsa ekran kendiliğinden güncellenir.
+- Tema ve giriş modu **cihaza özeldir**, paylaşılmaz.
+
+Birden fazla turnuva gerekirse: sağ üstteki rozet → "Farklı bir turnuva" → kod. O turnuvanın adresi
+`.../#/t/KOD` olur. Ortak tablo her zaman sade adreste kalır.
 
 ### Kurulum (tek seferlik)
 

@@ -595,6 +595,7 @@
   /* ---------- Turnuva / senkronizasyon ---------- */
 
   var STATUS_LABEL = {
+    setup: ['Kurulum', 'Ortak tablo henüz kurulmadı'],
     local: ['Yerel', 'Bu cihazda saklanıyor'],
     online: ['Bağlı', 'Değişiklikler paylaşılıyor'],
     syncing: ['Gönderiliyor', 'Değişiklikler yükleniyor'],
@@ -611,9 +612,11 @@
     if (!chip) return;
     var s = syncInfo();
     var label = (STATUS_LABEL[s.status] || STATUS_LABEL.local)[0];
+    // Ortak tabloda kod göstermenin anlamı yok; durum yazılır.
+    var showCode = s.connected && s.code !== L.sync.defaultCode;
     chip.className = 'sync-chip s-' + s.status;
     chip.innerHTML = '<span class="dot"></span>' +
-      '<span class="txt">' + esc(s.connected ? s.code : label) + '</span>' +
+      '<span class="txt">' + esc(showCode ? s.code : label) + '</span>' +
       (s.pending ? '<span class="pending">' + s.pending + '</span>' : '');
     chip.title = (s.connected ? s.name + ' (' + s.code + ') — ' : '') + (STATUS_LABEL[s.status] || STATUS_LABEL.local)[1];
   }
@@ -623,40 +626,52 @@
     var html = sheetHead('Turnuva', (STATUS_LABEL[s.status] || STATUS_LABEL.local)[1]);
 
     if (!s.connected) {
-      html += '<div class="note" style="margin-bottom:14px;"><b>Şu an yerel mod</b>' +
-        'Veriler yalnızca bu tarayıcıda. Turnuva oluşturursan link paylaşan herkes aynı tabloyu görür.</div>';
-
-      html += '<div class="section-title">Yeni turnuva oluştur</div><div class="card">' +
-        '<div class="field-group"><label class="field" for="syncName">Turnuva adı</label>' +
-        '<input type="text" id="syncName" maxlength="80" placeholder="Ör. Yaz Ligi 2026" autocomplete="off"></div>' +
-        '<div class="field-group"><label class="field" for="syncPin">Skor giriş PIN\'i</label>' +
-        '<input type="text" id="syncPin" maxlength="32" placeholder="en az 4 karakter" autocomplete="off" inputmode="numeric"></div>' +
-        '<button class="block" data-act="sync-create">Oluştur ve Yükle</button>' +
-        '<div class="hint">Mevcut oyuncu ve maçların turnuvaya taşınır. PIN\'i skor girecek kişilerle paylaş.</div>' +
+      var setup = s.status === 'setup';
+      html += '<div class="note ' + (setup ? 'ok' : '') + '" style="margin-bottom:14px;"><b>' +
+        (setup ? 'Ortak tablo henüz kurulmadı' : 'Şu an yerel mod') + '</b>' +
+        (setup
+          ? 'Kurduğunda siteyi açan herkes kod veya link olmadan doğrudan bu tabloyu görür. Sadece bir kez yapılır.'
+          : 'Sunucuya ulaşılamıyor; veriler şimdilik bu tarayıcıda. Bağlantı gelince ortak tabloya dönülür.') +
         '</div>';
 
-      html += '<div class="section-title">Turnuvaya katıl</div><div class="card">' +
+      if (setup) {
+        html += '<div class="section-title">Ortak tabloyu kur</div><div class="card">' +
+          '<div class="field-group"><label class="field" for="syncName">Turnuva adı</label>' +
+          '<input type="text" id="syncName" maxlength="80" placeholder="Ör. Yaz Ligi 2026" autocomplete="off"></div>' +
+          '<div class="field-group"><label class="field" for="syncPin">Skor giriş PIN\'i</label>' +
+          '<input type="text" id="syncPin" maxlength="32" placeholder="en az 4 karakter" autocomplete="off" inputmode="numeric"></div>' +
+          '<button class="block" data-act="sync-create">Kur</button>' +
+          '<div class="hint">Bu cihazdaki oyuncu ve maçlar ortak tabloya taşınır. PIN\'i sadece skor girecek kişilere ver; ' +
+          'herkes tabloyu PIN\'siz görebilir.</div>' +
+          '</div>';
+      }
+
+      html += '<div class="section-title">Farklı bir turnuva</div><div class="card">' +
         '<div class="row"><input type="text" id="syncCode" class="grow" maxlength="12" placeholder="Turnuva kodu" autocomplete="off" style="text-transform:uppercase;">' +
-        '<button data-act="sync-join">Katıl</button></div>' +
-        '<div class="hint"><strong>Dikkat:</strong> katılınca bu cihazdaki yerel veriler turnuvanınkilerle değişir. Önce Ayarlar → Yedek Al.</div>' +
+        '<button class="secondary" data-act="sync-join">Bağlan</button></div>' +
+        '<div class="hint">Normalde gerekmez — herkes varsayılan ortak tabloya bağlanır. ' +
+        'Ayrı bir turnuva yürütüyorsan kodunu buraya gir.</div>' +
         '</div>';
       return html;
     }
 
     html += '<div class="card">' +
       '<div class="stat-grid">' +
-      statTile('Kod', esc(s.code)) +
+      statTile('Tablo', s.code === L.sync.defaultCode ? 'Ortak' : esc(s.code)) +
       statTile('Sürüm', s.version) +
       statTile('Bekleyen', s.pending) +
       '</div>' +
       '<div class="hint"><strong>' + esc(s.name) + '</strong> — ' + esc((STATUS_LABEL[s.status] || STATUS_LABEL.local)[1]) + '</div>' +
       '</div>';
 
+    var isDefault = s.code === L.sync.defaultCode;
     html += '<div class="section-title">Paylaş</div><div class="card">' +
-      '<div class="share-url">' + esc(L.sync.shareUrl()) + '</div>' +
+      '<div class="share-url">' + esc(isDefault ? location.origin + location.pathname : L.sync.shareUrl()) + '</div>' +
       '<button class="secondary block" data-act="sync-copy" style="margin-top:10px;">Linki Kopyala</button>' +
-      '<div class="hint">Linki olan herkes tabloyu görür. Skor girmek için PIN gerekir.</div>' +
-      '</div>';
+      '<div class="hint">' + (isDefault
+        ? 'Bu ortak tablo. Adresi açan herkes aynı fikstürü ve puan durumunu görür — kod girmeye gerek yok.'
+        : 'Linki olan herkes bu turnuvayı görür.') +
+      ' Skor girmek için PIN gerekir.</div></div>';
 
     html += '<div class="section-title">Skor girişi</div><div class="card">';
     if (s.canWrite) {

@@ -15,6 +15,9 @@
 
   var SYNC_KEY = 'ligSync_v1';
   var API = '/api';
+  /* Tek ortak turnuva: siteyi açan herkes kod/link olmadan aynı tabloya bağlanır.
+     URL'de #/t/KOD varsa o turnuva kullanılır (birden fazla turnuva istenirse). */
+  var DEFAULT_CODE = 'MAIN';
   var FLUSH_DELAY = 600;        // ms, yazmaları topla
   var POLL_ACTIVE = 8000;       // ms, sekme görünürken
   var POLL_HIDDEN = 60000;      // ms, sekme arka plandayken
@@ -141,8 +144,11 @@
 
   /* ---------- turnuva işlemleri ---------- */
 
-  function create(name, pin) {
-    return request('/tournaments', { method: 'POST', body: { name: name, pin: pin, state: store.state } })
+  function create(name, pin, code) {
+    return request('/tournaments', {
+      method: 'POST',
+      body: { name: name, pin: pin, code: code || undefined, state: store.state }
+    })
       .then(function (res) {
         session.code = res.code;
         session.name = res.name;
@@ -315,17 +321,18 @@
     return m ? m[1].toUpperCase() : null;
   }
 
+  /* Ortak turnuvada adres sade kalır; sadece farklı bir turnuvada kod yazılır. */
   function writeHash(code) {
-    var next = code ? '#/t/' + code : ' ';
-    if (location.hash !== next) history.replaceState(null, '', code ? next : location.pathname + location.search);
+    var want = (code && code !== DEFAULT_CODE) ? '#/t/' + code : '';
+    if ((location.hash || '') === want) return;
+    history.replaceState(null, '', want || (location.pathname + location.search));
   }
 
   /* ---------- başlangıç ---------- */
 
   function init() {
     var urlCode = readHash();
-    var target = urlCode || session.code;
-    if (!target) { setStatus('local'); return Promise.resolve(); }
+    var target = urlCode || session.code || DEFAULT_CODE;
 
     if (urlCode && session.code && urlCode !== session.code) {
       // Başka bir turnuvanın linki açıldı: o turnuvaya geç.
@@ -340,8 +347,12 @@
       .then(notifyState)
       .catch(function (err) {
         if (err.status === 404) {
-          util.toast('Turnuva bulunamadı: ' + target + ' — yerel moda geçildi.', 'err');
-          leave();
+          // Ortak turnuva henüz kurulmamış: ilk açan kişi kurar.
+          session.code = null;
+          session.token = null; session.expiresAt = 0; session.queue = [];
+          persistSession();
+          setStatus('setup');
+          emit();
         } else {
           setStatus('offline');   // çevrimdışı: yerel kopya ile devam
         }
@@ -371,6 +382,8 @@
     flush: flush,
     canWrite: canWrite,
     isConnected: function () { return !!session.code; },
+    defaultCode: DEFAULT_CODE,
+    needsSetup: function () { return session.status === 'setup'; },
     shareUrl: function () {
       return session.code ? location.origin + location.pathname + '#/t/' + session.code : '';
     }

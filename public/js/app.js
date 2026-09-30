@@ -336,9 +336,11 @@
     name = name.trim();
     if (!name) { util.toast('Turnuva adı gerekli.', 'err'); return; }
     if (pin.trim().length < 4) { util.toast('PIN en az 4 karakter olmalı.', 'err'); return; }
-    L.sync.create(name, pin.trim()).then(function (res) {
+    // Kurulum ekranından geliniyorsa sabit ortak kodla kur.
+    var code = L.sync.needsSetup() ? L.sync.defaultCode : null;
+    L.sync.create(name, pin.trim(), code).then(function () {
       ui.render();
-      util.toast('Turnuva oluşturuldu: ' + res.code, 'ok');
+      util.toast('Ortak tablo kuruldu. Adresi açan herkes bu tabloyu görecek.', 'ok');
     }, syncError);
   }
 
@@ -371,7 +373,11 @@
   }
 
   function syncCopy() {
-    var url = L.sync.shareUrl();
+    var s = L.sync.state();
+    // Ortak tabloda kod gerekmez; sade adres paylaşılır.
+    var url = s.code === L.sync.defaultCode
+      ? location.origin + location.pathname
+      : L.sync.shareUrl();
     util.copyText(url).then(function (ok) {
       util.toast(ok ? 'Link kopyalandı.' : url, ok ? 'ok' : '');
     });

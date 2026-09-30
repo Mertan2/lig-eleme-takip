@@ -179,6 +179,13 @@ async function createTournament(env, request) {
     return fail(400, 'bad_pin', 'PIN en az 4, en fazla 32 karakter olmalı.');
   }
 
+  // İstemci sabit bir kod isteyebilir (tek ortak turnuva kurulumu için).
+  const wanted = typeof (body.data || {}).code === 'string'
+    ? body.data.code.trim().toUpperCase() : '';
+  if (wanted && !/^[A-Z0-9]{4,12}$/.test(wanted)) {
+    return fail(400, 'bad_code', 'Geçersiz turnuva kodu.');
+  }
+
   const stateJSON = JSON.stringify(state && typeof state === 'object' ? state : {});
   if (stateJSON.length > MAX_STATE_CHARS) return fail(413, 'too_large', 'Turnuva verisi çok büyük.');
 
@@ -187,7 +194,7 @@ async function createTournament(env, request) {
   const now = Date.now();
 
   for (let attempt = 0; attempt < 6; attempt++) {
-    const code = randomCode();
+    const code = wanted || randomCode();
     try {
       await env.DB.prepare(
         `INSERT INTO tournaments (code, name, state, version, pin_hash, pin_salt, created_at, updated_at)
@@ -197,7 +204,9 @@ async function createTournament(env, request) {
       const { token, expiresAt } = await makeToken(secretOf(env), code);
       return json({ code, name: name.trim().slice(0, 80), version: 1, token, expiresAt }, 201);
     } catch (e) {
-      if (!String(e && e.message).includes('UNIQUE')) throw e; // kod çakıştı -> tekrar dene
+      if (!String(e && e.message).includes('UNIQUE')) throw e;
+      // İstenen kod doluysa tekrar denemenin anlamı yok.
+      if (wanted) return fail(409, 'code_taken', 'Bu turnuva zaten var.');
     }
   }
   return fail(500, 'code_collision', 'Turnuva kodu üretilemedi, tekrar deneyin.');
