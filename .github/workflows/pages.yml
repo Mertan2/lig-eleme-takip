@@ -28,6 +28,21 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      # GitHub Pages dosyaları 10 dakika önbelleklenir. Sürüm eklenmezse
+      # kullanıcılar güncellemeden sonra eski JS'i çalıştırmaya devam eder.
+      - name: Varlık adreslerine sürüm ekle
+        run: |
+          python3 - <<'EOF'
+          import os, re
+          ver = os.environ['GITHUB_SHA'][:8]
+          p = 'public/index.html'
+          s = open(p, encoding='utf-8').read()
+          s = re.sub(r'(src="js/[^"?]+\.js)"', r'\1?v=' + ver + '"', s)
+          s = re.sub(r'(href="assets/[^"?]+\.(?:css|svg))"', r'\1?v=' + ver + '"', s)
+          open(p, 'w', encoding='utf-8').write(s)
+          print('\n'.join(l for l in s.splitlines() if '?v=' in l))
+          EOF
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
