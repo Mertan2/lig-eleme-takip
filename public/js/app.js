@@ -296,7 +296,7 @@
       { title: 'Her şeyi sıfırla', okLabel: 'Sıfırla', danger: true }).then(function (ok) {
         if (!ok) return;
         store.resetAll();
-        view.tab = 'oyuncular'; view.week = 'all'; view.status = 'all'; view.query = '';
+        view.tab = 'oyuncular'; view.status = 'all'; view.query = '';
         ui.closeSheet();
         store.commit(store.patch.everything());
         ui.render();
@@ -318,53 +318,32 @@
     util.toast(e && e.message ? e.message : 'Bağlantı hatası.', 'err');
   }
 
+  /* Tek şifre kutusu. Ortak tablo yoksa girilen şifre onu kurar. */
   function askPin() {
-    if (!L.sync || !L.sync.isConnected()) return;
-    util.prompt('Turnuva PIN\'i', '', { title: 'Skor girmek için PIN', okLabel: 'Giriş' })
-      .then(function (pin) {
-        if (!pin) return;
-        return L.sync.authenticate(pin).then(function () {
-          ui.render();
-          util.toast('Yazma izni açıldı.', 'ok');
-        }, syncError);
-      });
+    if (!L.sync) return;
+    var first = L.sync.needsSetup();
+    util.prompt(first ? 'Belirlediğin şifre' : 'Şifre', '', {
+      title: first ? 'Düzenlemeyi başlat' : 'Şifre gir',
+      okLabel: first ? 'Başlat' : 'Giriş'
+    }).then(function (pin) {
+      if (!pin) return;
+      if (first && pin.trim().length < 4) { util.toast('Şifre en az 4 karakter olmalı.', 'err'); return; }
+      return L.sync.unlock(pin.trim()).then(function () {
+        ui.render();
+        util.toast(first ? 'Düzenleme açıldı. Bu şifreyi skor girecek kişilere ver.' : 'Düzenleme açıldı.', 'ok');
+      }, syncError);
+    });
   }
 
-  function syncCreate() {
-    var name = (util.el('syncName') || {}).value || '';
-    var pin = (util.el('syncPin') || {}).value || '';
-    name = name.trim();
-    if (!name) { util.toast('Turnuva adı gerekli.', 'err'); return; }
-    if (pin.trim().length < 4) { util.toast('PIN en az 4 karakter olmalı.', 'err'); return; }
-    // Kurulum ekranından geliniyorsa sabit ortak kodla kur.
-    var code = L.sync.needsSetup() ? L.sync.defaultCode : null;
-    L.sync.create(name, pin.trim(), code).then(function () {
-      ui.render();
-      util.toast('Ortak tablo kuruldu. Adresi açan herkes bu tabloyu görecek.', 'ok');
-    }, syncError);
+  /* Sağ üstteki düğme: kilitliyse şifre sorar, açıksa durum sayfasını açar. */
+  function syncChipClick() {
+    if (!L.sync) return;
+    if (L.sync.canWrite() && L.sync.isConnected()) ui.openSync();
+    else askPin();
   }
 
-  function syncJoin() {
-    var code = ((util.el('syncCode') || {}).value || '').trim().toUpperCase();
-    if (!code) { util.toast('Turnuva kodu gerekli.', 'err'); return; }
-    util.confirm('Bu cihazdaki yerel veriler ' + code + ' turnuvasınınkilerle değiştirilecek.',
-      { title: 'Turnuvaya katıl', okLabel: 'Katıl', danger: true }).then(function (ok) {
-        if (!ok) return;
-        return L.sync.join(code).then(function (res) {
-          ui.render();
-          util.toast(res.name + ' turnuvasına bağlanıldı.', 'ok');
-        }, syncError);
-      });
-  }
 
-  function syncPin() {
-    var pin = ((util.el('syncPinIn') || {}).value || '').trim();
-    if (!pin) { util.toast('PIN girin.', 'err'); return; }
-    L.sync.authenticate(pin).then(function () {
-      ui.render();
-      util.toast('Yazma izni açıldı.', 'ok');
-    }, syncError);
-  }
+
 
   function syncSignOut() {
     L.sync.signOut();
@@ -417,7 +396,6 @@
     'add-game': function (el) { addGame(+el.dataset.a, +el.dataset.b); },
     'undo-game': undoGame,
     'input-mode': function (el) { setInputMode(el.dataset.v); },
-    'set-group': function (el) { view.group = el.dataset.v; ui.render(); },
     'del-set': function (el) { deleteSet(+el.dataset.i); },
     'clear-score': clearScore,
     'set-status': function (el) { view.status = el.dataset.v; ui.render(); },
@@ -428,10 +406,8 @@
     'import': importData,
     'clear-scores': clearScores,
     'reset-all': resetAll,
-    'open-sync': function () { ui.openSync(); },
-    'sync-create': syncCreate,
-    'sync-join': syncJoin,
-    'sync-pin': syncPin,
+    'open-sync': syncChipClick,
+    'sync-pin': askPin,
     'sync-signout': syncSignOut,
     'sync-copy': syncCopy,
     'sync-refresh': syncRefresh,
@@ -464,9 +440,6 @@
     if (el.dataset.act === 'setting') {
       if (!requireWrite()) { ui.render(); return; }
       applySetting(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value, el.type === 'checkbox');
-    } else if (el.dataset.act === 'filter-week') {
-      view.week = el.value;
-      ui.render();
     }
   });
 
@@ -487,9 +460,6 @@
       e.preventDefault();
       if (requireWrite()) addPlayer();
     }
-    if (e.key === 'Enter' && e.target.id === 'syncPinIn') { e.preventDefault(); syncPin(); }
-    if (e.key === 'Enter' && e.target.id === 'syncCode') { e.preventDefault(); syncJoin(); }
-    if (e.key === 'Enter' && (e.target.id === 'syncName' || e.target.id === 'syncPin')) { e.preventDefault(); syncCreate(); }
     if (e.key === 'Escape' && !util.el('overlay').hidden && util.el('modal').hidden) {
       if (view.stack.length) ui.sheetBack(); else ui.closeSheet();
     }

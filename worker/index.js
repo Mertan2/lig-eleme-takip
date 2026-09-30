@@ -229,10 +229,12 @@ async function getTournament(env, code) {
   const row = await env.DB.prepare(
     'SELECT code, name, state, version, updated_at FROM tournaments WHERE code = ?'
   ).bind(code).first();
-  if (!row) return fail(404, 'not_found', 'Turnuva bulunamadı.');
+  // Tablo henüz kurulmamış olmak normal bir durum, hata değil:
+  // 404 yerine found:false döner ki tarayıcı konsolunda hata gibi görünmesin.
+  if (!row) return json({ code, found: false });
   let state;
   try { state = JSON.parse(row.state); } catch (e) { state = {}; }
-  return json({ code: row.code, name: row.name, state, version: row.version, updatedAt: row.updated_at });
+  return json({ code: row.code, found: true, name: row.name, state, version: row.version, updatedAt: row.updated_at });
 }
 
 async function getVersion(env, code) {

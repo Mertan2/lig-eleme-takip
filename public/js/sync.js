@@ -179,6 +179,12 @@
   function join(code) {
     code = String(code || '').trim().toUpperCase();
     return request('/tournaments/' + encodeURIComponent(code)).then(function (res) {
+      if (res.found === false) {
+        var e = new Error('Ortak tablo henüz kurulmadı.');
+        e.code = 'not_created';
+        e.status = 404;
+        throw e;
+      }
       session.code = res.code;
       session.name = res.name;
       session.version = res.version;
@@ -191,6 +197,15 @@
       emit();
       return res;
     });
+  }
+
+  /* Tek giriş noktası: şifre doğruysa düzenleme açılır.
+     Ortak tablo henüz yoksa ilk doğru şifre onu kurar — ayrı kurulum ekranı yok. */
+  function unlock(pin) {
+    if (session.status === 'setup' || !session.code) {
+      return create('Lig', pin, DEFAULT_CODE);
+    }
+    return authenticate(pin);
   }
 
   function authenticate(pin) {
@@ -386,6 +401,7 @@
     onRemoteState: onRemoteState,
     create: create,
     join: join,
+    unlock: unlock,
     authenticate: authenticate,
     refresh: refresh,
     leave: leave,

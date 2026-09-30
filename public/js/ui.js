@@ -9,8 +9,6 @@
 
   var view = {
     tab: 'oyuncular',
-    week: 'all',
-    group: 'tur',     // tur | oyuncu
     status: 'all',
     query: '',
     sheet: null,      // {type:'match'|'player', id}
@@ -158,28 +156,15 @@
     var all = store.state.matches.filter(function (m) { return m.phase === 'lig'; });
     if (!all.length) return '<div class="empty">Henüz fikstür yok.<br>Oyuncular sekmesinden oluşturun.</div>';
 
-    var weeks = [];
-    all.forEach(function (m) { if (weeks.indexOf(m.round) < 0) weeks.push(m.round); });
-    weeks.sort(function (a, b) { return a - b; });
     var pr = standings.progress();
-
-    var weekOpts = '<option value="all">Tüm turlar</option>' + weeks.map(function (w) {
-      return '<option value="' + w + '"' + (String(view.week) === String(w) ? ' selected' : '') + '>' + w + '. Tur</option>';
-    }).join('');
 
     var segs = [['all', 'Tümü'], ['pending', 'Bekleyen'], ['played', 'Oynanan']].map(function (o) {
       return '<button class="seg' + (view.status === o[0] ? ' on' : '') + '" data-act="set-status" data-v="' + o[0] + '">' + o[1] + '</button>';
     }).join('');
 
-    var groupSegs = [['tur', 'Turlara göre'], ['oyuncu', 'Oyunculara göre']].map(function (o) {
-      return '<button class="seg' + (view.group === o[0] ? ' on' : '') + '" data-act="set-group" data-v="' + o[0] + '">' + o[1] + '</button>';
-    }).join('');
-
     var html = '<div class="card">' +
-      '<div class="seg-group">' + groupSegs + '</div>' +
-      '<div class="seg-group" style="margin-top:8px;">' + segs + '</div>' +
+      '<div class="seg-group">' + segs + '</div>' +
       '<div class="row" style="margin-top:10px;">' +
-      (view.group === 'tur' ? '<select class="grow" data-act="filter-week" aria-label="Tur">' + weekOpts + '</select>' : '') +
       '<input type="search" class="grow" data-act="filter-query" placeholder="Oyuncu ara…" value="' + esc(view.query) + '">' +
       '</div>' +
       '<div style="margin-top:12px;">' + progressBar(pr.pct) +
@@ -187,31 +172,15 @@
       '</div>';
 
     var q = view.query.trim().toLocaleLowerCase('tr');
-    var byPlayer = view.group === 'oyuncu';
 
     var list = all.filter(function (m) {
-      if (!byPlayer && view.week !== 'all' && String(m.round) !== String(view.week)) return false;
       var played = !!rules.matchWinner(m);
       if (view.status === 'pending' && played) return false;
       if (view.status === 'played' && !played) return false;
-      if (q && !byPlayer) {
-        var names = (store.playerName(m.p1) + ' ' + store.playerName(m.p2)).toLocaleLowerCase('tr');
-        if (names.indexOf(q) < 0) return false;
-      }
       return true;
     });
 
-    if (byPlayer) return html + renderFixtureByPlayer(list, q);
-    if (!list.length) return html + '<div class="empty">Bu filtreye uyan maç yok.</div>';
-
-    var byWeek = {};
-    list.forEach(function (m) { (byWeek[m.round] = byWeek[m.round] || []).push(m); });
-    Object.keys(byWeek).map(Number).sort(function (a, b) { return a - b; }).forEach(function (w) {
-      html += '<div class="section-title">' + w + '. Tur</div>';
-      byWeek[w].sort(function (a, b) { return a.order - b.order; });
-      html += byWeek[w].map(function (m) { return matchCard(m, { hideMeta: true }); }).join('');
-    });
-    return html;
+    return html + renderFixtureByPlayer(list, q);
   }
 
   /* Her oyuncunun adı altında kendi maçları. */
@@ -607,18 +576,31 @@
     return L.sync ? L.sync.state() : { connected: false, status: 'local', pending: 0, canWrite: true };
   }
 
+  /* Sağ üstteki tek düğme: kilitliyken "Şifre gir", açıkken düzenleme durumu. */
   function updateSyncChip() {
     var chip = util.el('syncChip');
     if (!chip) return;
     var s = syncInfo();
-    var label = (STATUS_LABEL[s.status] || STATUS_LABEL.local)[0];
-    // Ortak tabloda kod göstermenin anlamı yok; durum yazılır.
-    var showCode = s.connected && s.code !== L.sync.defaultCode;
-    chip.className = 'sync-chip s-' + s.status;
-    chip.innerHTML = '<span class="dot"></span>' +
-      '<span class="txt">' + esc(showCode ? s.code : label) + '</span>' +
+    var label, cls, title;
+
+    if (s.status === 'offline') {
+      label = 'Çevrimdışı';
+      cls = 'offline';
+      title = 'Sunucuya ulaşılamıyor. Girdiklerin kaydedilir, bağlantı gelince gönderilir.';
+    } else if (s.canWrite && s.connected) {
+      label = 'Düzenleme açık';
+      cls = 'online';
+      title = 'Skor girebilirsin. Kapatmak için dokun.';
+    } else {
+      label = 'Şifre gir';
+      cls = 'locked';
+      title = 'Şu an izleme modundasın. Skor girmek için şifre gerekir.';
+    }
+
+    chip.className = 'sync-chip s-' + cls;
+    chip.innerHTML = '<span class="dot"></span><span class="txt">' + esc(label) + '</span>' +
       (s.pending ? '<span class="pending">' + s.pending + '</span>' : '');
-    chip.title = (s.connected ? s.name + ' (' + s.code + ') — ' : '') + (STATUS_LABEL[s.status] || STATUS_LABEL.local)[1];
+    chip.title = title;
   }
 
   function renderSyncSheet() {
@@ -626,31 +608,10 @@
     var html = sheetHead('Turnuva', (STATUS_LABEL[s.status] || STATUS_LABEL.local)[1]);
 
     if (!s.connected) {
-      var setup = s.status === 'setup';
-      html += '<div class="note ' + (setup ? 'ok' : '') + '" style="margin-bottom:14px;"><b>' +
-        (setup ? 'Ortak tablo henüz kurulmadı' : 'Şu an yerel mod') + '</b>' +
-        (setup
-          ? 'Kurduğunda siteyi açan herkes kod veya link olmadan doğrudan bu tabloyu görür. Sadece bir kez yapılır.'
-          : 'Sunucuya ulaşılamıyor; veriler şimdilik bu tarayıcıda. Bağlantı gelince ortak tabloya dönülür.') +
-        '</div>';
-
-      if (setup) {
-        html += '<div class="section-title">Ortak tabloyu kur</div><div class="card">' +
-          '<div class="field-group"><label class="field" for="syncName">Turnuva adı</label>' +
-          '<input type="text" id="syncName" maxlength="80" placeholder="Ör. Yaz Ligi 2026" autocomplete="off"></div>' +
-          '<div class="field-group"><label class="field" for="syncPin">Skor giriş PIN\'i</label>' +
-          '<input type="text" id="syncPin" maxlength="32" placeholder="en az 4 karakter" autocomplete="off" inputmode="numeric"></div>' +
-          '<button class="block" data-act="sync-create">Kur</button>' +
-          '<div class="hint">Bu cihazdaki oyuncu ve maçlar ortak tabloya taşınır. PIN\'i sadece skor girecek kişilere ver; ' +
-          'herkes tabloyu PIN\'siz görebilir.</div>' +
-          '</div>';
-      }
-
-      html += '<div class="section-title">Farklı bir turnuva</div><div class="card">' +
-        '<div class="row"><input type="text" id="syncCode" class="grow" maxlength="12" placeholder="Turnuva kodu" autocomplete="off" style="text-transform:uppercase;">' +
-        '<button class="secondary" data-act="sync-join">Bağlan</button></div>' +
-        '<div class="hint">Normalde gerekmez — herkes varsayılan ortak tabloya bağlanır. ' +
-        'Ayrı bir turnuva yürütüyorsan kodunu buraya gir.</div>' +
+      html += '<div class="note"><b>İzleme modu</b>' +
+        (s.status === 'setup'
+          ? 'Ortak tablo henüz kurulmadı. Sağ üstteki "Şifre gir" düğmesine dokunup bir şifre belirle — tablo o anda kurulur.'
+          : 'Sunucuya ulaşılamıyor. Girdiklerin bu cihazda saklanır, bağlantı gelince gönderilir.') +
         '</div>';
       return html;
     }
