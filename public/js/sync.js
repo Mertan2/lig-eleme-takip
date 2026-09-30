@@ -230,6 +230,20 @@
       });
   }
 
+  /* Şifreyi değiştirir. Veriye dokunmaz; diğer cihazlardaki açık oturumlar düşer. */
+  function changePin(newPin) {
+    if (!session.code) return Promise.reject(new Error('Bağlı tablo yok.'));
+    return request('/tournaments/' + session.code + '/pin', {
+      method: 'POST', auth: true, body: { pin: newPin }
+    }).then(function (res) {
+      session.token = res.token;
+      session.expiresAt = res.expiresAt;
+      persistSession();
+      emit();
+      return res;
+    });
+  }
+
   function signOut() {
     session.token = null;
     session.expiresAt = 0;
@@ -413,6 +427,7 @@
     authenticate: authenticate,
     refresh: refresh,
     leave: leave,
+    changePin: changePin,
     signOut: signOut,
     queue: queue,
     flush: flush,

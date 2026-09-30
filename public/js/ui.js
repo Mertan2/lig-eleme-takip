@@ -643,8 +643,10 @@
 
     html += '<div class="section-title">Skor girişi</div><div class="card">';
     if (s.canWrite) {
-      html += '<div class="done-note">PIN girildi — skor girebilirsin.</div>' +
-        '<button class="ghost block" data-act="sync-signout" style="margin-top:10px;">Yazma İznini Bırak</button>';
+      html += '<div class="done-note">Şifre girildi — skor girebilirsin.</div>' +
+        '<button class="secondary block" data-act="sync-change-pin" style="margin-top:10px;">Şifreyi Değiştir</button>' +
+        '<button class="ghost block" data-act="sync-signout" style="margin-top:8px;">Düzenlemeyi Kapat</button>' +
+        '<div class="hint">Şifre değiştirmek <strong>veriyi silmez</strong>. Diğer cihazlarda açık olan düzenleme oturumları kapanır.</div>';
     } else {
       html += '<div class="row"><input type="password" id="syncPinIn" class="grow" maxlength="32" placeholder="Turnuva PIN\'i" autocomplete="off">' +
         '<button data-act="sync-pin">Giriş</button></div>' +

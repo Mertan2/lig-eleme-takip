@@ -90,13 +90,15 @@ async function hmac(secret, message) {
   return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(message)));
 }
 
-async function makeToken(secret, code) {
+/* İmzaya pin_salt da katılır: şifre değişince salt değişir ve daha önce
+   verilmiş bütün tokenlar kendiliğinden geçersiz olur. */
+async function makeToken(secret, code, salt) {
   const exp = Date.now() + TOKEN_TTL_MS;
   const body = code + '.' + exp;
-  return { token: body + '.' + (await hmac(secret, body)), expiresAt: exp };
+  return { token: body + '.' + (await hmac(secret, body + '.' + salt)), expiresAt: exp };
 }
 
-async function verifyToken(secret, code, token) {
+async function verifyToken(secret, code, token, salt) {
   if (!token) return false;
   const parts = token.split('.');
   if (parts.length !== 3) return false;
@@ -104,7 +106,7 @@ async function verifyToken(secret, code, token) {
   if (tCode !== code) return false;
   const exp = Number(expStr);
   if (!isFinite(exp) || exp < Date.now()) return false;
-  const expected = await hmac(secret, tCode + '.' + expStr);
+  const expected = await hmac(secret, tCode + '.' + expStr + '.' + salt);
   return timingSafeEqual(sig, expected);
 }
 
@@ -214,7 +216,7 @@ async function createTournament(env, request) {
          VALUES (?, ?, ?, 1, ?, ?, ?, ?)`
       ).bind(code, name.trim().slice(0, 80), stateJSON, hash, salt, now, now).run();
 
-      const { token, expiresAt } = await makeToken(secretOf(env), code);
+      const { token, expiresAt } = await makeToken(secretOf(env), code, salt);
       return json({ code, name: name.trim().slice(0, 80), version: 1, token, expiresAt }, 201);
     } catch (e) {
       if (!String(e && e.message).includes('UNIQUE')) throw e;
@@ -273,13 +275,15 @@ async function authTournament(env, code, request) {
 
   await env.DB.prepare('UPDATE tournaments SET pin_fails = 0, locked_until = 0 WHERE code = ?')
     .bind(code).run();
-  const { token, expiresAt } = await makeToken(secretOf(env), code);
+  const { token, expiresAt } = await makeToken(secretOf(env), code, row.pin_salt);
   return json({ token, expiresAt });
 }
 
 async function patchTournament(env, code, request) {
-  if (!(await verifyToken(secretOf(env), code, bearer(request)))) {
-    return fail(401, 'unauthorized', 'Yazma izni yok. PIN ile giriş yapın.');
+  const auth = await env.DB.prepare('SELECT pin_salt FROM tournaments WHERE code = ?').bind(code).first();
+  if (!auth) return fail(404, 'not_found', 'Turnuva bulunamadı.');
+  if (!(await verifyToken(secretOf(env), code, bearer(request), auth.pin_salt))) {
+    return fail(401, 'unauthorized', 'Yazma izni yok. Şifre ile giriş yapın.');
   }
   const body = await readJSON(request);
   if (body.tooBig) return fail(413, 'too_large', 'Veri çok büyük.');
@@ -307,6 +311,34 @@ async function patchTournament(env, code, request) {
 
   // Sürüm arada değiştiyse istemci güncel hali alsın diye state hep geri döner.
   return json({ version, state: next, updatedAt: now, rebased: baseVersion !== row.version });
+}
+
+/* Şifre değiştirme: veriye dokunmaz, sadece yeni şifre ve yeni salt yazar.
+   Salt değiştiği için eski tokenlar (diğer cihazlardaki açık oturumlar) düşer. */
+async function changePin(env, code, request) {
+  const row = await env.DB.prepare(
+    'SELECT pin_salt FROM tournaments WHERE code = ?'
+  ).bind(code).first();
+  if (!row) return fail(404, 'not_found', 'Turnuva bulunamadı.');
+  if (!(await verifyToken(secretOf(env), code, bearer(request), row.pin_salt))) {
+    return fail(401, 'unauthorized', 'Önce mevcut şifreyle giriş yapın.');
+  }
+
+  const body = await readJSON(request);
+  if (body.bad) return fail(400, 'bad_json', 'Geçersiz istek.');
+  const pin = (body.data || {}).pin;
+  if (typeof pin !== 'string' || pin.length < 4 || pin.length > 32) {
+    return fail(400, 'bad_pin', 'Şifre en az 4, en fazla 32 karakter olmalı.');
+  }
+
+  const salt = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const hash = await pbkdf2(pin, salt);
+  await env.DB.prepare(
+    'UPDATE tournaments SET pin_hash = ?, pin_salt = ?, pin_fails = 0, locked_until = 0 WHERE code = ?'
+  ).bind(hash, salt, code).run();
+
+  const { token, expiresAt } = await makeToken(secretOf(env), code, salt);
+  return json({ ok: true, token, expiresAt });
 }
 
 /* ---------- Worker girişi ---------- */
@@ -343,6 +375,7 @@ export default {
       if (clean.length === 3 && clean[2] === 'version' && request.method === 'GET') return await getVersion(env, code);
       if (clean.length === 3 && clean[2] === 'auth' && request.method === 'POST') return await authTournament(env, code, request);
       if (clean.length === 3 && clean[2] === 'patch' && request.method === 'POST') return await patchTournament(env, code, request);
+      if (clean.length === 3 && clean[2] === 'pin' && request.method === 'POST') return await changePin(env, code, request);
 
       return fail(404, 'not_found', 'Bilinmeyen uç nokta.');
     } catch (e) {

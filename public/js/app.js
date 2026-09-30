@@ -346,6 +346,19 @@
 
 
 
+  function syncChangePin() {
+    util.prompt('Yeni şifre', '', { title: 'Şifreyi değiştir', okLabel: 'Değiştir' })
+      .then(function (pin) {
+        if (!pin) return;
+        pin = pin.trim();
+        if (pin.length < 4) { util.toast('Şifre en az 4 karakter olmalı.', 'err'); return; }
+        return L.sync.changePin(pin).then(function () {
+          ui.render();
+          util.toast('Şifre değiştirildi. Veriler yerinde.', 'ok');
+        }, syncError);
+      });
+  }
+
   function syncSignOut() {
     L.sync.signOut();
     ui.render();
@@ -409,6 +422,7 @@
     'reset-all': resetAll,
     'open-sync': syncChipClick,
     'sync-pin': askPin,
+    'sync-change-pin': syncChangePin,
     'sync-signout': syncSignOut,
     'sync-copy': syncCopy,
     'sync-refresh': syncRefresh,

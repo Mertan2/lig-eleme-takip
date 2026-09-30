@@ -121,9 +121,10 @@ public/                     ← yayınlanan tek klasör
   js/playoffs.js            eleme braketi ve seri başı düzeni
   js/ui.js                  render katmanı
   js/app.js                 olay bağlama ve komutlar
-functions/api/              Cloudflare Pages Function (turnuva API'si)
+worker/index.js             Cloudflare Worker — turnuva API'si
+worker/wrangler.toml        Worker + D1 yapılandırması
 schema.sql                  D1 şeması
-wrangler.toml               Cloudflare yapılandırması (public/ dışında → servis edilmez)
+.github/workflows/pages.yml GitHub Pages yayını
 ```
 
 ## Veri uyarısı
