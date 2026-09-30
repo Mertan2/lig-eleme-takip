@@ -19,11 +19,12 @@
    * - Site Cloudflare'den (pages.dev / özel alan adı) veya yerelden servis ediliyorsa aynı origin.
    * - GitHub Pages gibi başka bir yerden servis ediliyorsa Cloudflare'deki API'ye mutlak adresle gidilir.
    * index.html içinde window.LIG_API_BASE tanımlanarak elle de ayarlanabilir. */
-  var CLOUDFLARE_API = 'https://lig-eleme-takip.pages.dev/api';
+  var CLOUDFLARE_API = 'https://lig-eleme-takip-api.mmertan2.workers.dev/api';
   var API = (function () {
     if (global.LIG_API_BASE) return String(global.LIG_API_BASE).replace(/\/+$/, '');
     var h = location.hostname;
-    var sameOrigin = /\.pages\.dev$/.test(h) || h === 'localhost' || h === '127.0.0.1' || h === '';
+    // Yerel geliştirmede wrangler aynı origin'den servis eder.
+    var sameOrigin = h === 'localhost' || h === '127.0.0.1' || h === '';
     return sameOrigin ? '/api' : CLOUDFLARE_API;
   })();
   /* Tek ortak turnuva: siteyi açan herkes kod/link olmadan aynı tabloya bağlanır.

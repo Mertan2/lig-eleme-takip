@@ -1,7 +1,7 @@
-/* Cloudflare Pages Function — turnuva API'si.
+/* Cloudflare Worker — turnuva API'si (lig-eleme-takip).
  *
- * Uç noktalar (hepsi /api altında):
- *   POST   /api/tournaments                 {name, pin}          -> {code, token, version}
+ * Uç noktalar:
+ *   POST   /api/tournaments                 {name, pin, code?}   -> {code, token, version}
  *   GET    /api/tournaments/:code                                -> {code, name, state, version, updatedAt}
  *   GET    /api/tournaments/:code/version                        -> {version, updatedAt}
  *   POST   /api/tournaments/:code/auth      {pin}                -> {token, expiresAt}
@@ -9,6 +9,9 @@
  *
  * Okuma herkese açık; yazma için PIN ile alınmış token şart. PIN doğrulaması
  * yalnızca sunucuda yapılır, hash'i istemciye hiç gönderilmez.
+ *
+ * Neden Worker? pages.dev Türkiye'de DNS ile engelli; workers.dev değil.
+ * Site GitHub Pages'te, API burada, veritabanı aynı D1.
  */
 
 const MAX_STATE_CHARS = 512 * 1024;
@@ -304,36 +307,44 @@ async function patchTournament(env, code, request) {
   return json({ version, state: next, updatedAt: now, rebased: baseVersion !== row.version });
 }
 
-/* ---------- yönlendirici ---------- */
+/* ---------- Worker girişi ---------- */
 
-export async function onRequest(context) {
-  const { request, env, params } = context;
+/* Not: bu dosya Cloudflare Worker olarak çalışır (*.workers.dev).
+   Site GitHub Pages'te durduğu için istekler farklı origin'den gelir; CORS açıktır.
+   Yetki, origin'e değil PIN ile alınan imzalı token'a dayanır. */
 
-  if (request.method === 'OPTIONS') return preflight();
+export default {
+  async fetch(request, env) {
+    if (request.method === 'OPTIONS') return preflight();
 
-  const segments = Array.isArray(params.path) ? params.path : String(params.path || '').split('/');
-  const clean = segments.filter(Boolean);
+    const url = new URL(request.url);
+    const clean = url.pathname.split('/').filter(Boolean);
+    if (clean[0] === 'api') clean.shift();   // hem /api/... hem /... kabul edilir
 
-  try {
-    if (!env.DB) return fail(500, 'no_db', 'D1 veritabanı bağlı değil (binding: DB).');
+    try {
+      if (!env.DB) return fail(500, 'no_db', 'D1 veritabanı bağlı değil (binding: DB).');
 
-    if (clean[0] !== 'tournaments') return fail(404, 'not_found', 'Bilinmeyen uç nokta.');
+      if (clean.length === 0) {
+        return json({ ok: true, service: 'lig-eleme-takip-api' });
+      }
+      if (clean[0] !== 'tournaments') return fail(404, 'not_found', 'Bilinmeyen uç nokta.');
 
-    if (clean.length === 1) {
-      if (request.method === 'POST') return await createTournament(env, request);
-      return fail(405, 'method', 'Yalnızca POST.');
+      if (clean.length === 1) {
+        if (request.method === 'POST') return await createTournament(env, request);
+        return fail(405, 'method', 'Yalnızca POST.');
+      }
+
+      const code = String(clean[1] || '').toUpperCase().slice(0, 12);
+      if (!/^[A-Z0-9]{4,12}$/.test(code)) return fail(400, 'bad_code', 'Geçersiz turnuva kodu.');
+
+      if (clean.length === 2 && request.method === 'GET') return await getTournament(env, code);
+      if (clean.length === 3 && clean[2] === 'version' && request.method === 'GET') return await getVersion(env, code);
+      if (clean.length === 3 && clean[2] === 'auth' && request.method === 'POST') return await authTournament(env, code, request);
+      if (clean.length === 3 && clean[2] === 'patch' && request.method === 'POST') return await patchTournament(env, code, request);
+
+      return fail(404, 'not_found', 'Bilinmeyen uç nokta.');
+    } catch (e) {
+      return fail(500, 'server_error', String((e && e.message) || e));
     }
-
-    const code = String(clean[1] || '').toUpperCase().slice(0, 12);
-    if (!/^[A-Z0-9]{4,12}$/.test(code)) return fail(400, 'bad_code', 'Geçersiz turnuva kodu.');
-
-    if (clean.length === 2 && request.method === 'GET') return await getTournament(env, code);
-    if (clean.length === 3 && clean[2] === 'version' && request.method === 'GET') return await getVersion(env, code);
-    if (clean.length === 3 && clean[2] === 'auth' && request.method === 'POST') return await authTournament(env, code, request);
-    if (clean.length === 3 && clean[2] === 'patch' && request.method === 'POST') return await patchTournament(env, code, request);
-
-    return fail(404, 'not_found', 'Bilinmeyen uç nokta.');
-  } catch (e) {
-    return fail(500, 'server_error', String((e && e.message) || e));
   }
-}
+};
