@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Turnuva takip uygulaması — fikstür, puan durumu, eleme braketi ve oyuncu istatistikleri.">
+<meta name="theme-color" content="#3056d3">
+<title>Lig &amp; Eleme Takip</title>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-top">
+    <h1>Lig &amp; Eleme Takip</h1>
+    <div class="header-actions">
+      <button class="sync-chip" id="syncChip" data-act="open-sync" title="Turnuva ve senkronizasyon"></button>
+      <button class="icon-btn" data-act="cycle-theme" title="Tema değiştir" aria-label="Tema değiştir">🌓</button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Bölümler">
+    <button class="tab" role="tab" data-tab="oyuncular">Oyuncular</button>
+    <button class="tab" role="tab" data-tab="fikstur">Fikstür</button>
+    <button class="tab" role="tab" data-tab="puan">Puan Durumu</button>
+    <button class="tab" role="tab" data-tab="eleme">Eleme</button>
+    <button class="tab" role="tab" data-tab="ayarlar">Ayarlar</button>
+  </nav>
+</header>
+
+<main id="main" class="main" role="tabpanel"></main>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Maç skoru"></div>
+</div>
+
+<div class="overlay overlay--center" id="modal" hidden>
+  <div class="dialog" id="dialog" role="dialog" aria-modal="true"></div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script src="js/util.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/standings.js"></script>
+<script src="js/playoffs.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

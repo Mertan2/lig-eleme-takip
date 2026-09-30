@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lig-full",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "wrangler@4", "pages", "dev", "--port", "4173", "--ip", "127.0.0.1"],
+      "port": 4173
+    },
+    {
+      "name": "lig-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4174", "--directory", "public"],
+      "port": 4174
+    }
+  ]
+}
