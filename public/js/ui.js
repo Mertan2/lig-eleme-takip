@@ -221,17 +221,21 @@
           var bye = rules.isBye(m);
           var w = rules.matchWinner(m, c);
           var s = rules.matchSetsWon(m, c);
+          var started = !bye && rules.hasScore(m);
           var mineScore = meFirst ? s.a : s.b, theirs = meFirst ? s.b : s.a;
           var won2 = bye ? true : (w ? (meFirst ? w === 'a' : w === 'b') : null);
           var tag = bye ? '<span class="hb bye">BAY</span>'
-            : !w ? '<span class="hb">—</span>'
-              : won2 ? '<span class="hb w">G</span>' : '<span class="hb l">M</span>';
+            : w ? (won2 ? '<span class="hb w">G</span>' : '<span class="hb l">M</span>')
+              : started ? '<span class="hb live">•</span>'
+                : '<span class="hb">—</span>';
           return '<button class="hrow" data-act="open-match" data-id="' + esc(m.id) + '"' + (bye ? ' disabled' : '') + '>' +
             tag +
             '<span class="hr-opp">' + esc(bye ? 'BAY' : store.playerName(oppId)) +
-            (w && !bye ? '<small class="hr-detail">' + esc(rules.setDetail(m, c)) + '</small>' : '') + '</span>' +
+            (started ? '<small class="hr-detail">' + esc(rules.setDetail(m, c)) +
+              (w ? '' : ' · devam ediyor') + '</small>' : '') + '</span>' +
             '<span class="hr-meta">' + m.round + '. Tur</span>' +
-            '<span class="hr-score">' + (bye ? '—' : w ? mineScore + '-' + theirs : '') + '</span>' +
+            '<span class="hr-score' + (!w && started ? ' live' : '') + '">' +
+            (bye ? '—' : (w || started) ? mineScore + '-' + theirs : '') + '</span>' +
             '</button>';
         }).join('') + '</div></div>';
     });
@@ -534,14 +538,17 @@
     } else {
       html += '<div class="hist">' + st.history.map(function (h) {
         var tag = h.bye ? '<span class="hb bye">BAY</span>'
-          : !h.played ? '<span class="hb">—</span>'
-            : h.won ? '<span class="hb w">G</span>' : '<span class="hb l">M</span>';
+          : h.played ? (h.won ? '<span class="hb w">G</span>' : '<span class="hb l">M</span>')
+            : h.started ? '<span class="hb live">•</span>'
+              : '<span class="hb">—</span>';
         return '<button class="hrow" data-act="open-match" data-id="' + esc(h.id) + '"' + (h.bye ? ' disabled' : '') + '>' +
           tag +
           '<span class="hr-opp">' + esc(h.oppName) +
-          (h.played && h.detail ? '<small class="hr-detail">' + esc(h.detail) + '</small>' : '') + '</span>' +
+          (h.detail && (h.played || h.started)
+            ? '<small class="hr-detail">' + esc(h.detail) + (h.played ? '' : ' · devam ediyor') + '</small>' : '') + '</span>' +
           '<span class="hr-meta">' + (h.phase === 'lig' ? h.round + '. Tur' : 'Eleme') + '</span>' +
-          '<span class="hr-score">' + (h.bye ? '—' : h.played ? h.mine + '-' + h.theirs : '') + '</span>' +
+          '<span class="hr-score' + (!h.played && h.started ? ' live' : '') + '">' +
+          (h.bye ? '—' : (h.played || h.started) ? h.mine + '-' + h.theirs : '') + '</span>' +
           '</button>';
       }).join('') + '</div>';
     }

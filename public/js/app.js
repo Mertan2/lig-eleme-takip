@@ -9,9 +9,10 @@
 
   function commitAndRender(patch) { store.commit(patch); ui.render(); }
 
-  /* Bağlı turnuvada yazma izni yoksa PIN iste ve işlemi durdur. */
+  /* Şifre girilmeden hiçbir değişikliğe izin verilmez. */
   function requireWrite() {
-    if (!L.sync || !L.sync.isConnected() || L.sync.canWrite()) return true;
+    if (!L.sync) return true;          // sync hiç yüklenmediyse (ör. dosyadan açıldıysa)
+    if (L.sync.canWrite()) return true;
     askPin();
     return false;
   }

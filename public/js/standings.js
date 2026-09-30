@@ -143,7 +143,9 @@
       history.push({
         id: m.id, phase: m.phase, round: m.round, bye: bye,
         oppId: oppId, oppName: bye ? 'BAY' : store.playerName(oppId),
-        played: !!w, won: won, mine: mine, theirs: theirs,
+        played: !!w,
+        started: !bye && rules.hasScore(m),   // başlamış ama bitmemiş maçlar da skorlu gösterilir
+        won: won, mine: mine, theirs: theirs,
         detail: bye ? '' : rules.setDetail(m, c)
       });
 

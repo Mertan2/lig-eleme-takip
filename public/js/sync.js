@@ -92,8 +92,9 @@
     };
   }
 
+  /* Şifresiz hiçbir değişiklik yapılamaz — tablo kurulmamışken bile.
+     Çevrimdışıyken de geçerli: şifreyi daha önce girmiş olan yazmaya devam eder. */
   function canWrite() {
-    if (!session.code) return true;                 // yerel mod: her şey serbest
     return !!session.token && session.expiresAt > Date.now() + 5000;
   }
 
@@ -205,7 +206,14 @@
     if (session.status === 'setup' || !session.code) {
       return create('Lig', pin, DEFAULT_CODE);
     }
-    return authenticate(pin);
+    return authenticate(pin).catch(function (err) {
+      // İlk yükleme sırasında sunucuya ulaşılamamışsa tablonun var olup olmadığı
+      // bilinmiyor olabilir; yoksa bu şifreyle kurulur.
+      if (err && (err.status === 404 || err.code === 'not_found')) {
+        return create('Lig', pin, DEFAULT_CODE);
+      }
+      throw err;
+    });
   }
 
   function authenticate(pin) {
