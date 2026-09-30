@@ -14,7 +14,18 @@
   var store = global.LIG.store;
 
   var SYNC_KEY = 'ligSync_v1';
-  var API = '/api';
+
+  /* API nerede?
+   * - Site Cloudflare'den (pages.dev / özel alan adı) veya yerelden servis ediliyorsa aynı origin.
+   * - GitHub Pages gibi başka bir yerden servis ediliyorsa Cloudflare'deki API'ye mutlak adresle gidilir.
+   * index.html içinde window.LIG_API_BASE tanımlanarak elle de ayarlanabilir. */
+  var CLOUDFLARE_API = 'https://lig-eleme-takip.pages.dev/api';
+  var API = (function () {
+    if (global.LIG_API_BASE) return String(global.LIG_API_BASE).replace(/\/+$/, '');
+    var h = location.hostname;
+    var sameOrigin = /\.pages\.dev$/.test(h) || h === 'localhost' || h === '127.0.0.1' || h === '';
+    return sameOrigin ? '/api' : CLOUDFLARE_API;
+  })();
   /* Tek ortak turnuva: siteyi açan herkes kod/link olmadan aynı tabloya bağlanır.
      URL'de #/t/KOD varsa o turnuva kullanılır (birden fazla turnuva istenirse). */
   var DEFAULT_CODE = 'MAIN';
